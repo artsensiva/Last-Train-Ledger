@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#111d21" />
+    <meta
+      name="description"
+      content="A strategy game about the promises aboard the last night train."
+    />
+    <title>Last Train Ledger</title>
+    <link rel="stylesheet" href="style.css?v=3" />
+    <script defer src="engine.js?v=3"></script>
+    <script defer src="app.js?v=3"></script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <dialog id="help">
+      <form method="dialog"><button class="close" aria-label="Close guide">×</button></form>
+      <p class="eyebrow">THE CONDUCTOR’S HANDBOOK</p>
+      <h2>Every ticket is a promise.</h2>
+      <p>
+        Run the last train from Coppergate to Dawn Terminal. Reach the end by
+        <strong>03:00</strong> (six hours after the 21:00 departure). Carry passengers and cargo,
+        keep your promises, and finish with a healthy ledger.
+      </p>
+      <ol>
+        <li>
+          <strong>Choose your commitments.</strong> Offers show their destination, deadline, space,
+          and fare. Payment arrives at the destination. Late delivery pays half.
+        </li>
+        <li>
+          <strong>Mind your engine.</strong> Coal powers every leg. Condition falls with travel. Buy
+          coal or repair before departure. Repairs take 7 minutes.
+        </li>
+        <li>
+          <strong>Choose a track.</strong> Express is faster but consumes more coal and condition.
+          Each departure also pays the crew: £10 plus £2 per occupied space. The full cost is shown
+          on each track. The valley siding is economical but slow.
+        </li>
+        <li>
+          <strong>Respond to the night.</strong> Incidents between stops offer visible tradeoffs.
+          Resolve them before taking new contracts.
+        </li>
+        <li>
+          <strong>Leave a good record.</strong> On-time deliveries earn reputation. Handing a
+          contract to relief loses reputation. A £35 emergency advance is available once; its £45
+          repayment is deducted in the final result.
+        </li>
+      </ol>
+      <p>
+        Your progress saves automatically in this browser when storage is available. A seed
+        reproduces the same starting journey; your choices change what happens next.
+      </p>
+      <p class="muted">
+        Keyboard: Tab to move between controls, Enter to activate, Escape to close this guide. No
+        account, network connection, or AI service is required to play.
+      </p>
+    </dialog>
+    <dialog id="card-preview">
+      <form method="dialog"><button class="close" aria-label="Close journey card">×</button></form>
+      <p class="eyebrow">YOUR NIGHT, ON RECORD</p>
+      <h2>A small souvenir.</h2>
+      <img
+        id="journey-image"
+        alt="Your completed journey, service score, deliveries and net earnings"
+        style="display: block; width: 100%; height: auto; margin: 20px 0; border-radius: 5px"
+      /><a id="download-card" class="download-link" download="last-train-ledger-journey.png"
+        >Download PNG</a
+      >
+      <p class="muted" style="margin-top: 16px">
+        If this browser does not download images, right-click or long-press the card to save it.
+      </p>
+    </dialog>
+    <noscript>This game needs JavaScript enabled.</noscript>
+  </body>
+</html>
