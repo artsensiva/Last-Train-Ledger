@@ -9,8 +9,10 @@
     "start": "python3 -m http.server 4173 --bind 127.0.0.1",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check:syntax": "node --check engine.js && node --check app.js && node --check build.js",
-    "check": "npm run check:syntax && npm run format:check"
+    "check:syntax": "node --check engine.js && node --check app.js && node --check build.js && node --check commerce/server.js && node --check storefront/store.js && node --check storefront/success.js",
+    "check": "npm run check:syntax && npm run format:check",
+    "store": "node commerce/server.js",
+    "package": "npm run build && python3 commerce/package-game.py"
   },
   "engines": {
     "node": ">=22"
@@ -21,5 +23,8 @@
   },
   "devDependencies": {
     "prettier": "3.10.1"
+  },
+  "dependencies": {
+    "stripe": "23.2.0"
   }
 }
