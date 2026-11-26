@@ -1,8 +1,9 @@
 (() => {
   'use strict';
+  const DEMO = document.documentElement.dataset.edition === 'demo';
   const E = window.Ledger,
-    KEY = 'last-train-ledger-v1',
-    BEST = 'last-train-ledger-best-v1.1';
+    KEY = DEMO ? 'last-train-ledger-demo-v1' : 'last-train-ledger-v1',
+    BEST = DEMO ? 'last-train-ledger-demo-best-v1' : 'last-train-ledger-best-v1.1';
   let state = null,
     selected = 'meridian',
     saved = null,
@@ -59,7 +60,7 @@
     state = null;
     el.innerHTML =
       header() +
-      `<main class="landing"><section class="hero"><div><p class="eyebrow">A STRATEGY GAME OF SMALL PROMISES</p><h1>The last train.<br><em>Your ledger.</em></h1><p class="hero-copy">Eight stations before the light. A carriage full of stories. Decide who gets aboard, what you can promise, and how much the night will cost.</p></div>${art()}</section><div class="intro-rule"></div><div class="fleet-title"><h2>Choose your locomotive</h2><span class="eyebrow">ONE NIGHT · MANY WAYS HOME</span></div><div class="fleet">${E.TRAINS.map((t) => `<button class="train-choice ${t.id === selected ? 'selected' : ''}" data-action="select" data-id="${t.id}" aria-pressed="${t.id === selected}"><p class="eyebrow">${t.tag}</p><h3>${t.name}</h3><p class="desc">${t.desc}</p><div class="train-stats"><span>${t.capacity} spaces</span><span>${t.tank} coal capacity</span><span>£${t.cash} cash</span></div></button>`).join('')}</div><div class="launch"><label>Journey seed<input id="seed" maxlength="40" value="${esc(new Date().toISOString().slice(0, 10))}" autocomplete="off" spellcheck="false"></label><button class="primary" data-action="start">Begin the night</button>${saved ? `<button data-action="continue">${saved.phase === 'ended' ? 'View last ledger' : 'Continue saved journey'}</button>` : ''}<span class="footnote">Single player · 15–25 minutes · Saves locally</span></div></main>`;
+      `<main class="landing">${DEMO ? '<p class="onboarding">FREE DEMO · Meridian · First three stations. <a href="/">Back to the storefront</a></p>' : ''}<section class="hero"><div><p class="eyebrow">A STRATEGY GAME OF SMALL PROMISES</p><h1>The last train.<br><em>Your ledger.</em></h1><p class="hero-copy">Eight stations before the light. A carriage full of stories. Decide who gets aboard, what you can promise, and how much the night will cost.</p></div>${art()}</section><div class="intro-rule"></div><div class="fleet-title"><h2>Choose your locomotive</h2><span class="eyebrow">ONE NIGHT · MANY WAYS HOME</span></div><div class="fleet">${(DEMO ? E.TRAINS.slice(0, 1) : E.TRAINS).map((t) => `<button class="train-choice ${t.id === selected ? 'selected' : ''}" data-action="select" data-id="${t.id}" aria-pressed="${t.id === selected}"><p class="eyebrow">${t.tag}</p><h3>${t.name}</h3><p class="desc">${t.desc}</p><div class="train-stats"><span>${t.capacity} spaces</span><span>${t.tank} coal capacity</span><span>£${t.cash} cash</span></div></button>`).join('')}</div><div class="launch"><label>Journey seed<input id="seed" maxlength="40" value="${esc(new Date().toISOString().slice(0, 10))}" autocomplete="off" spellcheck="false"></label><button class="primary" data-action="start">Begin the night</button>${saved ? `<button data-action="continue">${saved.phase === 'ended' ? 'View last ledger' : 'Continue saved journey'}</button>` : ''}<span class="footnote">Single player · 15–25 minutes · Saves locally</span></div></main>`;
   }
   function stat(label, value, suffix = '', warn = false) {
     return `<div class="stat"><label>${label}</label><strong class="${warn ? 'warning' : ''}">${value}</strong> <small>${suffix}</small></div>`;
@@ -81,6 +82,12 @@
     return `<section class="event" aria-label="Incident"><p class="eyebrow">A MOMENT ON THE LINE</p><h2>${e.title}</h2><p>${e.text}</p><div class="event-choices">${e.choices.map((c, i) => `<button data-action="choice" data-index="${i}" ${state.cash + (c.cash || 0) < 0 || state.fuel + (c.fuel || 0) < 0 ? 'disabled' : ''}><strong>${c.label}</strong><span>${c.note}</span></button>`).join('')}</div></section>`;
   }
   function game() {
+    if (DEMO && state.station >= 2) {
+      el.innerHTML =
+        header() +
+        `<main class="ending"><p class="eyebrow">THREE STATIONS · DEMO COMPLETE</p><h1>Your night has just begun.</h1><p class="muted">You reached ${E.STATIONS[2].name} at ${E.clock(state.time)}, with ${state.delivered.length} deliveries and ${money(state.cash)} in cash. Contracts still aboard continue beyond this demo; this is not your final score.</p><p>The full journey continues to Dawn Terminal, with eight stations and three locomotives.</p><div class="end-actions"><a class="download-link" href="/">Explore the full game</a><button data-action="replay">Replay this demo</button></div></main>`;
+      return;
+    }
     if (state.phase === 'ended') {
       ending();
       return;
@@ -224,7 +231,7 @@
       exportCard();
       return;
     }
-    if (!state) return;
+    if (!state || (DEMO && state.station >= 2)) return;
     if (
       a === 'retire' &&
       !confirm('End this service? Contracts still aboard will be handed to relief.')

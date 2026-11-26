@@ -78,3 +78,41 @@ A plausible commercial experiment is a free three-station demo leading to the fu
 Canonical checkout: `/home/artem/Last-Train-Ledger`. Remote: https://github.com/artsensiva/Last-Train-Ledger. Earlier chat output bundles are snapshots, not the ongoing source of truth.
 
 Use feature branches and pull requests. CI checks syntax, formatting, tests, and builds on Node 22 and 24. GitHub Actions are pinned to commit SHAs, workflow permissions are read-only, and Dependabot proposes tool/action updates. See CONTRIBUTING.md for the development and release workflow. Build output is intentionally ignored by Git.
+
+## Storefront and Stripe test integration
+
+The `feat/stripe-storefront` work adds a separate Node server; the downloadable game still has no runtime dependencies. The storefront is **test-only**, not a live store. It refuses live Stripe keys and events. No public deployment is included.
+
+Run `npm ci --ignore-scripts`, then `npm run package` (requires Python 3), then `npm run store`. Open http://127.0.0.1:4180. Without credentials, the storefront and three-station Meridian demo work; checkout stays disabled. Demo saves are separate from full-game saves. The demo ends on reaching station three, before its arrival incident; ongoing contracts are not scored as failures. The demo is a presentation limit, not DRM; the repository remains public.
+
+For Stripe testing, copy `.env.example` to an ignored local `.env`, fill it with a **test** secret key, an active one-time EUR test Price ID, the webhook signing secret, and a randomly generated download signing secret of at least 32 characters. Launch with `node --env-file=.env commerce/server.js`. Never send secrets through chat or commit them. Configure your Stripe CLI listener to forward `checkout.session.completed` and `checkout.session.async_payment_succeeded` to `/api/webhook`; its signing secret differs from a Dashboard endpoint secret.
+
+The server creates a hosted Checkout Session using only the server-configured price. Signed webhooks and the return page both perform idempotent fulfillment. Each fulfillment retrieves the session and payment from Stripe, checks the product price, quantity, payment and test status, and stores an atomic entitlement record. Downloads require a signed link and recheck refund/dispute status. Amounts on the page come from Stripe, not a hardcoded advertised price. No real transactions or Stripe-account changes have been performed.
+
+Only allowlisted storefront/demo assets are served. The full ZIP and order directory are private. Retain the download-signing secret and back up the order directory; changing the secret invalidates existing links, but the original success URL can issue a new link. That URL is a bearer credential: do not log query strings, include them in analytics, or share them. No customer email is stored locally; bookmark-based recovery is always available, and an optional SMTP test-delivery worker is described below.
+
+### Before production
+
+- Choose hosting and domain. This server binds to loopback and expects an HTTPS reverse proxy for staging. A deployment must provide durable private storage, backups, error monitoring, and edge rate limiting. The built-in limiter is per-process and uses the direct peer address, not forwarded headers.
+- Configure Stripe test credentials and verify an actual hosted test checkout, webhook retry, refund, and downloaded archive in browsers. Automated tests use a mocked Stripe API and real SDK signature verification; they do not establish account integration.
+- Connect and validate the SMTP delivery worker below, then add reviewed live recipient handling, customer support and recovery procedures. Verify inbox delivery and provider outages before enabling sales.
+- Finalize seller identity, VAT treatment, privacy and digital-content sale terms. The current storefront explicitly identifies itself as a preview and does not invent these details.
+- Decide how the public source repository fits the paid offer. This integration protects the packaged download, not publicly available source or assets already delivered to browsers.
+- Complete independent playtests and agree on launch price. Add real gameplay screenshots/video and privacy-conscious conversion measurement before paid acquisition.
+- Implement a separately reviewed live-mode configuration after these requirements are met. Do not simply substitute a live key: this release intentionally rejects it.
+
+Stripe references: [Checkout fulfillment](https://docs.stripe.com/checkout/fulfillment), [webhook verification](https://docs.stripe.com/webhooks), [Checkout Session creation](https://docs.stripe.com/api/checkout/sessions/create).
+
+### Test delivery worker
+
+`commerce/mail-worker.js` processes verified order records independently of checkout. Configure the SMTP variables in `.env.example`, including a verified sender (`MAIL_FROM`) and a mailbox you control (`MAIL_TEST_TO`). Run one pass with `node --env-file=.env commerce/mail-worker.js`. Do not run it until you intend to send test emails. No emails were sent during development.
+
+All messages go to `MAIL_TEST_TO`, never to an arbitrary address entered at sandbox checkout. The worker uses TLS on port 465 or mandatory STARTTLS on 587. SMTP credentials remain in environment configuration. It shares the server's purchase verification, including payment, product, refund, dispute and test-mode checks. Email links open the original private recovery page so a fresh download link can be issued there.
+
+Schedule one pass per minute on the same host and persistent order volume as the web server. Each pass attempts at most 50 eligible orders. Failures retry after 1 minute, with exponential backoff capped at 1 hour. Ineligible payments are blocked for operator review. State stores attempt counts and timestamps, not customer email or message bodies. Monitor the aggregate JSON result and nonzero exit status; do not log recovery links or SMTP errors containing addresses or credentials.
+
+The `mail/.worker-lock` directory prevents concurrent workers. A hard crash can leave that lock behind: stop/confirm all workers have exited before removing only that empty directory, then restart the scheduler. A crash after SMTP accepts a message but before state is saved can result in duplicate delivery. SMTP does not provide exactly-once delivery; stable Message-ID values are used, but recipient deduplication is not guaranteed. Provider acceptance also does not prove inbox delivery. Configure bounce monitoring before production.
+
+Sent-state records under the private order directory prevent routine duplicate sends across restarts. To intentionally retry a blocked/sent test order, stop the worker, inspect its payment status, and remove only that order's `mail/cs_test_….json` state record. Never remove the underlying entitlement. Back up the order directory and keep all these paths outside the public web root.
+
+Before switching to real sales, live-mode recipient handling must be reviewed and tested separately. There is no public email-lookup or resend endpoint in this release. Production account provisioning, authenticated sender DNS, bounce handling, and an actual Stripe-to-SMTP end-to-end test remain outstanding.
