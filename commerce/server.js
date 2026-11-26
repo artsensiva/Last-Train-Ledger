@@ -48,6 +48,42 @@ async function body(req) {
   }
   return Buffer.concat(chunks);
 }
+const fail = (status, message) => {
+  throw Object.assign(new Error(message), { status });
+};
+async function verifyPurchase(config, stripe, id) {
+  if (!SESSION.test(id)) fail(400, 'Invalid test checkout reference.');
+  const session = await stripe.checkout.sessions.retrieve(id, { expand: ['line_items'] });
+  const lines = session.line_items;
+  if (
+    session.livemode !== false ||
+    session.mode !== 'payment' ||
+    session.metadata?.game !== 'last-train-ledger' ||
+    session.payment_status !== 'paid' ||
+    session.status !== 'complete' ||
+    lines?.has_more ||
+    lines?.data?.length !== 1 ||
+    lines.data[0].price?.id !== config.price ||
+    lines.data[0].quantity !== 1
+  )
+    fail(409, 'Payment is not confirmed for this game.');
+  if (!session.payment_intent) fail(409, 'Payment is not confirmed.');
+  const payment = await stripe.paymentIntents.retrieve(session.payment_intent, {
+    expand: ['latest_charge'],
+  });
+  const charge = payment.latest_charge;
+  if (
+    payment.status !== 'succeeded' ||
+    !charge ||
+    typeof charge === 'string' ||
+    charge.refunded ||
+    charge.amount_refunded > 0 ||
+    charge.disputed
+  )
+    fail(409, 'This payment is not eligible for a download.');
+  return session;
+}
+
 function createStore(config, client) {
   const stripe =
     client ||
@@ -57,40 +93,8 @@ function createStore(config, client) {
   const fail = (status, message) => {
     throw Object.assign(new Error(message), { status });
   };
-  async function verified(id) {
-    if (!SESSION.test(id)) fail(400, 'Invalid test checkout reference.');
-    const session = await stripe.checkout.sessions.retrieve(id, { expand: ['line_items'] });
-    const lines = session.line_items;
-    if (
-      session.livemode !== false ||
-      session.mode !== 'payment' ||
-      session.metadata?.game !== 'last-train-ledger' ||
-      session.payment_status !== 'paid' ||
-      session.status !== 'complete' ||
-      lines?.has_more ||
-      lines?.data?.length !== 1 ||
-      lines.data[0].price?.id !== config.price ||
-      lines.data[0].quantity !== 1
-    )
-      fail(409, 'Payment is not confirmed for this game.');
-    if (!session.payment_intent) fail(409, 'Payment is not confirmed.');
-    const payment = await stripe.paymentIntents.retrieve(session.payment_intent, {
-      expand: ['latest_charge'],
-    });
-    const charge = payment.latest_charge;
-    if (
-      payment.status !== 'succeeded' ||
-      !charge ||
-      typeof charge === 'string' ||
-      charge.refunded ||
-      charge.amount_refunded > 0 ||
-      charge.disputed
-    )
-      fail(409, 'This payment is not eligible for a download.');
-    return session;
-  }
   async function fulfill(id) {
-    await verified(id);
+    await verifyPurchase(config, stripe, id);
     await fs.mkdir(config.orders, { recursive: true, mode: 0o700 });
     // Unique temporary files plus atomic rename: simultaneous webhook and redirect
     // requests produce the same entitlement, never a partially readable record.
@@ -215,7 +219,7 @@ function createStore(config, client) {
           const id = url.searchParams.get('session_id') || '';
           if (!SESSION.test(id) || !tokenValid(id, url.searchParams.get('token'), config.signing))
             fail(403, 'Invalid download link.');
-          await verified(id);
+          await verifyPurchase(config, stripe, id);
           await fs.access(path.join(config.orders, `${id}.json`));
           const data = await fs.readFile(config.archive);
           res.writeHead(200, {
@@ -265,4 +269,4 @@ if (require.main === module) {
     console.log(`Store preview: ${config.origin} (test mode only)`),
   );
 }
-module.exports = { configuration, createStore, tokenFor, tokenValid };
+module.exports = { configuration, createStore, tokenFor, tokenValid, verifyPurchase };
